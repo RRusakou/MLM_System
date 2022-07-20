@@ -1,58 +1,48 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.8;
+pragma solidity ^0.8.12;
 
-contract MLMSystem {
-    mapping(address => address) private referralToReferrer;
-    mapping(address => address[]) private directPartners;
-    mapping(address => uint256) private userBalance;
-    mapping(address => bool) private isSignedUp;
-    uint8 constant feePercents = 5;
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
+contract MLMSystem is Initializable {
     struct Referral {
         address addressReferral;
         uint8 level;
     }
 
+    mapping(address => address) private referralToReferrer;
+    mapping(address => address[]) private directPartners;
+    mapping(address => uint256) private userBalance;
+    mapping(address => bool) private isSignedUp;
+    uint8 private constant FEE_PERCENTS = 5;
+    uint[] private levels;
+    uint[] private percents;
+
     //Checks if the user is logged into the system
     modifier notSignedUp() {
-        require(!isSignedUp[msg.sender]);
+        require(!isSignedUp[msg.sender], "user already registered");
         _;
     }
 
-    // Returns the balance for a specific address
-    function getBalance(address _member) public view returns (uint256 balance) {
-        return userBalance[_member];
-    }
+    function initialize() public {
+        levels = [
+            0.005 ether,
+            0.01 ether,
+            0.02 ether,
+            0.05 ether,
+            0.1 ether,
+            0.2 ether,
+            0.5 ether,
+            1 ether,
+            2 ether,
+            5 ether
+        ];
 
-    //Returns the level of the user, depending on his balance
-    function getLevel(address _member) public view returns (uint8) {
-        uint currentBalance = getBalance(_member);
-        if (currentBalance >= 5e15 && currentBalance < 1e16) {
-            return 1;
-        } else if (currentBalance >= 1e16 && currentBalance < 2e16) {
-            return 2;
-        } else if (currentBalance >= 2e16 && currentBalance < 5e16) {
-            return 3;
-        } else if (currentBalance >= 5e16 && currentBalance < 1e17) {
-            return 4;
-        } else if (currentBalance >= 1e17 && currentBalance < 2e17) {
-            return 5;
-        } else if (currentBalance >= 2e17 && currentBalance < 5e17) {
-            return 6;
-        } else if (currentBalance >= 5e17 && currentBalance < 1e18) {
-            return 7;
-        } else if (currentBalance >= 1e18 && currentBalance < 2e18) {
-            return 8;
-        } else if (currentBalance >= 2e18 && currentBalance < 5e18) {
-            return 9;
-        } else if (currentBalance >= 5e18) {
-            return 10;
-        }
+        percents = [10, 7, 5, 2, 1];
     }
 
     // Returns an array of structures containing the level and address of the referrals
     function getReferalsInfo() external view returns (Referral[] memory) {
-        require(directPartners[msg.sender].length != 0, "No referrals ");
+        require(directPartners[msg.sender].length != 0, "No referrals");
         uint count = directPartners[msg.sender].length;
         Referral[] memory referralInfo = new Referral[](count);
         for (uint i = 0; i < directPartners[msg.sender].length; i++) {
@@ -62,6 +52,39 @@ contract MLMSystem {
             });
         }
         return (referralInfo);
+    }
+
+    // Payable function that allows you to invest in this smart contract
+    function invest() external payable {
+        require(msg.value >= (5 * 10e18) / 10e3, "minimal value = 0.005 Eth");
+        userBalance[msg.sender] += (msg.value * (100 - FEE_PERCENTS)) / 100;
+    }
+
+    // Function that withdraws all funds from the account, while transferring part of the funds as a commission to referrers
+    function withdraw() external {
+        uint256 withdrawalComission = calculateWithdrawalComission(
+            userBalance[msg.sender]
+        );
+        uint256 amount = userBalance[msg.sender] - withdrawalComission;
+        userBalance[msg.sender] = 0;
+        withdrawComissionToReferrers(amount + withdrawalComission);
+        (bool success, ) = msg.sender.call{value: amount}("withdraw started");
+        require(success, "Transfer failed.");
+    }
+
+    // Returns the balance for a specific address
+    function getBalance(address _member) public view returns (uint256 balance) {
+        return userBalance[_member];
+    }
+
+    //Returns the level of the user, depending on his balance
+    function getLevel(address _member) public view returns (uint8 level) {
+        uint currentBalance = getBalance(_member);
+        uint8 i = 0;
+        while (i < 10 && currentBalance > levels[i]) {
+            i++;
+        }
+        return i;
     }
 
     // Registration function without referral link
@@ -81,24 +104,6 @@ contract MLMSystem {
     // Function to check the existence of the specified referrer
     function isReferrerExist(address _referrer) private view returns (bool) {
         return isSignedUp[_referrer];
-    }
-
-    // Payable function that allows you to invest in this smart contract
-    function invest() external payable {
-        require(msg.value >= (5 * 10e18) / 10e3, "minimal value = 0.005 Eth");
-        userBalance[msg.sender] += (msg.value * (100 - feePercents)) / 100;
-    }
-
-    // Function that withdraws all funds from the account, while transferring part of the funds as a commission to referrers
-    function withdraw() external {
-        uint256 withdrawalComission = calculateWithdrawalComission(
-            userBalance[msg.sender]
-        );
-        uint256 amount = userBalance[msg.sender] - withdrawalComission;
-        userBalance[msg.sender] = 0;
-        withdrawComissionToReferrers(amount + withdrawalComission);
-        (bool success, ) = msg.sender.call{value: amount}("withdraw started");
-        require(success, "Transfer failed.");
     }
 
     // A function that calculates the total commission (in ether) when withdrawing funds
@@ -138,22 +143,13 @@ contract MLMSystem {
 
     //Commission percent calculation function based on referral level
     //@returns percent * 10
-    function findComission(uint8 level)
-        private
-        pure
-        returns (uint256 comission)
-    {
+    function findComission(uint8 level) private view returns (uint256) {
         require(level > 0 && level <= 10, "Wrong level");
-        if (level == 1) {
-            return 10;
-        } else if (level == 2) {
-            return 7;
-        } else if (level == 3) {
-            return 5;
-        } else if (level == 4) {
-            return 2;
+
+        if (level < 5) {
+            return percents[level - 1];
         } else {
-            return 1;
+            return percents[percents.length - 1];
         }
     }
 }
