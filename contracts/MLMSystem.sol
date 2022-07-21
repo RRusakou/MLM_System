@@ -37,7 +37,7 @@ contract MLMSystem is Initializable {
             5 ether
         ];
 
-        percents = [10, 7, 5, 2, 1];
+        percents = [10, 7, 5, 2, 1, 1, 1, 1, 1, 1];
     }
 
     // Returns an array of structures containing the level and address of the referrals
@@ -145,11 +145,6 @@ contract MLMSystem is Initializable {
     //@returns percent * 10
     function findComission(uint8 level) private view returns (uint256) {
         require(level > 0 && level <= 10, "Wrong level");
-
-        if (level < 5) {
-            return percents[level - 1];
-        } else {
-            return percents[percents.length - 1];
-        }
+        return percents[level - 1];
     }
 }
