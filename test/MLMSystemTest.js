@@ -14,6 +14,7 @@ describe("MLMSystem", function () {
     mlmSystem = await MLMSystem.deploy();
     await mlmSystem.deployed();
     console.log(mlmSystem.address);
+    await mlmSystem.initialize();
   });
 
   it("contract address should be correct", async function () {
@@ -58,7 +59,6 @@ describe("MLMSystem", function () {
   });
 
   it("the level must return according to the assignment", async function () {
-    await mlmSystem.initialize();
     await mlmSystem.connect(acc1)["signUp()"]();
     const value = 0.006;
     const tx = await mlmSystem.invest({
@@ -69,7 +69,6 @@ describe("MLMSystem", function () {
   });
 
   it("Information about referrals must consist of two required fields : level and address", async function () {
-    await mlmSystem.initialize();
     await mlmSystem.connect(acc1)["signUp()"]();
     const value = 0.006;
     await mlmSystem.connect(acc2)["signUp(address)"](acc1.address);
@@ -99,48 +98,30 @@ describe("MLMSystem", function () {
   });
 
   it("must correctly calculate the commission and distribute it among referrals", async function () {
+    value = 1;
     await mlmSystem.connect(acc1)["signUp()"]();
-    const value = 0.006;
     await mlmSystem.connect(acc2)["signUp(address)"](acc1.address);
-    await mlmSystem.connect(acc3)["signUp(address)"](acc1.address);
-    await mlmSystem.connect(acc4)["signUp(address)"](acc1.address);
+    await mlmSystem.connect(acc3)["signUp(address)"](acc2.address);
     await mlmSystem.connect(acc1).invest({
-      value: ethers.utils.parseEther((10 * value).toString()),
+      value: ethers.utils.parseEther((0.012 * value).toString()),
     });
     await mlmSystem.connect(acc2).invest({
-      value: ethers.utils.parseEther((4 * value).toString()),
+      value: ethers.utils.parseEther((0.006 * value).toString()),
     });
     await mlmSystem.connect(acc3).invest({
-      value: ethers.utils.parseEther((2 * value).toString()),
+      value: ethers.utils.parseEther((20 * value).toString()),
     });
-    await mlmSystem.connect(acc4).invest({
-      value: ethers.utils.parseEther(value.toString()),
-    });
-
-    oldBalanceReferrerThirdLevel = await mlmSystem
-      .connect(acc1)
-      .getBalance(acc1.address);
-    oldBalanceReferrerSecondLevel = await mlmSystem
-      .connect(acc2)
-      .getBalance(acc2.address);
-    oldBalanceReferrerFirstLevel = await mlmSystem
-      .connect(acc3)
-      .getBalance(acc3.address);
-    balanceOfReferral = mlmSystem.connect(acc4).getBalance();
-
-    mlmSystem.connect(acc4).withdraw();
-    expect(
-      (oldBalanceReferrerThirdLevel + (balanceOfReferral * 1) / 10e3).toString()
-    ) == (await mlmSystem.connect(acc1).getBalance(acc1.address)).toString();
-    expect(
-      (
-        oldBalanceReferrerSecondLevel +
-        (balanceOfReferral * 1) / 10e3
-      ).toString()
-    ) == (await mlmSystem.connect(acc2).getBalance(acc2.address)).toString();
-    expect(
-      (oldBalanceReferrerFirstLevel + (balanceOfReferral * 1) / 10e3).toString()
-    ) == (await mlmSystem.connect(acc3).getBalance(acc3.address)).toString();
+    acc1Balance = await mlmSystem.getBalance(acc1.address);
+    acc2Balance = await mlmSystem.getBalance(acc2.address);
+    acc3Balance = await mlmSystem.getBalance(acc3.address);
+    await mlmSystem.connect(acc3).withdraw();
+    expect((await mlmSystem.getBalance(acc1.address)).toString()).to.equal(
+      (Number(acc1Balance) + Number(acc3Balance * 0.007)).toString()
+    );
+    expect((await mlmSystem.getBalance(acc2.address)).toString()).to.equal(
+      (Number(acc2Balance) + Number(acc3Balance * 0.01)).toString()
+    );
+    expect((await mlmSystem.getBalance(acc3.address)).toString()).to.equal("0");
   });
 
   it("the balance of the participant who withdraws funds must be zeroed", async function () {

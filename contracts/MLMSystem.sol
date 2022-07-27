@@ -114,10 +114,10 @@ contract MLMSystem is Initializable {
     {
         address currentReferrer = referralToReferrer[msg.sender];
         uint256 comissionSum;
-        for (uint i = 1; currentReferrer != address(0); i++) {
+        for (uint8 i = 1; currentReferrer != address(0); i++) {
             uint8 referrerLevel = getLevel(currentReferrer);
-            if (referrerLevel > i) {
-                comissionSum += (balance / 1000) * findComission(referrerLevel);
+            if (referrerLevel >= i) {
+                comissionSum += (balance / 1000) * findComission(i);
             }
             currentReferrer = referralToReferrer[currentReferrer];
         }
@@ -130,12 +130,9 @@ contract MLMSystem is Initializable {
         uint256 comissionSum;
         for (uint8 depth = 1; currentReferrer != address(0); depth++) {
             uint8 referrerLevel = getLevel(currentReferrer);
-            if (referrerLevel > depth) {
-                comissionSum = (balance * findComission(referrerLevel)) / 1000;
-                (bool success, ) = currentReferrer.call{value: (comissionSum)}(
-                    "withdraw started"
-                );
-                require(success, "Transfer failed.");
+            if (referrerLevel >= depth) {
+                comissionSum = (balance/ 1000) * findComission(depth);
+                userBalance[currentReferrer] += comissionSum;
             }
             currentReferrer = referralToReferrer[currentReferrer];
         }
