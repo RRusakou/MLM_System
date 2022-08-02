@@ -17,12 +17,6 @@ contract MLMSystem is Initializable {
     uint[] private levels;
     uint[] private percents;
 
-    //Checks if the user is logged into the system
-    modifier notSignedUp() {
-        require(!isSignedUp[msg.sender], "user already registered");
-        _;
-    }
-
     function initialize() public {
         levels = [
             0.005 ether,
@@ -40,18 +34,10 @@ contract MLMSystem is Initializable {
         percents = [10, 7, 5, 2, 1, 1, 1, 1, 1, 1];
     }
 
-    // Returns an array of structures containing the level and address of the referrals
-    function getReferalsInfo() external view returns (Referral[] memory) {
-        require(directPartners[msg.sender].length != 0, "No referrals");
-        uint count = directPartners[msg.sender].length;
-        Referral[] memory referralInfo = new Referral[](count);
-        for (uint i = 0; i < directPartners[msg.sender].length; i++) {
-            referralInfo[i] = Referral({
-                addressReferral: directPartners[msg.sender][i],
-                level: getLevel(directPartners[msg.sender][i])
-            });
-        }
-        return (referralInfo);
+    //Checks if the user is logged into the system
+    modifier notSignedUp() {
+        require(!isSignedUp[msg.sender], "user already registered");
+        _;
     }
 
     // Payable function that allows you to invest in this smart contract
@@ -72,19 +58,18 @@ contract MLMSystem is Initializable {
         require(success, "Transfer failed.");
     }
 
-    // Returns the balance for a specific address
-    function getBalance(address _member) public view returns (uint256 balance) {
-        return userBalance[_member];
-    }
-
-    //Returns the level of the user, depending on his balance
-    function getLevel(address _member) public view returns (uint8 level) {
-        uint currentBalance = getBalance(_member);
-        uint8 i = 0;
-        while (i < 10 && currentBalance > levels[i]) {
-            i++;
+    // Returns an array of structures containing the level and address of the referrals
+    function getReferalsInfo() external view returns (Referral[] memory) {
+        require(directPartners[msg.sender].length != 0, "No referrals");
+        uint count = directPartners[msg.sender].length;
+        Referral[] memory referralInfo = new Referral[](count);
+        for (uint i = 0; i < directPartners[msg.sender].length; i++) {
+            referralInfo[i] = Referral({
+                addressReferral: directPartners[msg.sender][i],
+                level: getLevel(directPartners[msg.sender][i])
+            });
         }
-        return i;
+        return (referralInfo);
     }
 
     // Registration function without referral link
@@ -101,9 +86,33 @@ contract MLMSystem is Initializable {
         isSignedUp[msg.sender] = true;
     }
 
-    // Function to check the existence of the specified referrer
-    function isReferrerExist(address _referrer) private view returns (bool) {
-        return isSignedUp[_referrer];
+    // Returns the balance for a specific address
+    function getBalance(address _member) public view returns (uint256 balance) {
+        return userBalance[_member];
+    }
+
+    //Returns the level of the user, depending on his balance
+    function getLevel(address _member) public view returns (uint8 level) {
+        uint currentBalance = getBalance(_member);
+        uint8 i = 0;
+        while (i < 10 && currentBalance > levels[i]) {
+            i++;
+        }
+        return i;
+    }
+
+    // Function that transfers the commission to the referrer's account when withdrawing funds
+    function withdrawComissionToReferrers(uint256 balance) private {
+        address currentReferrer = referralToReferrer[msg.sender];
+        uint256 comissionSum;
+        for (uint8 depth = 1; currentReferrer != address(0); depth++) {
+            uint8 referrerLevel = getLevel(currentReferrer);
+            if (referrerLevel >= depth) {
+                comissionSum = (balance / 1000) * findComission(depth);
+                userBalance[currentReferrer] += comissionSum;
+            }
+            currentReferrer = referralToReferrer[currentReferrer];
+        }
     }
 
     // A function that calculates the total commission (in ether) when withdrawing funds
@@ -124,18 +133,9 @@ contract MLMSystem is Initializable {
         return comissionSum;
     }
 
-    // Function that transfers the commission to the referrer's account when withdrawing funds
-    function withdrawComissionToReferrers(uint256 balance) private {
-        address currentReferrer = referralToReferrer[msg.sender];
-        uint256 comissionSum;
-        for (uint8 depth = 1; currentReferrer != address(0); depth++) {
-            uint8 referrerLevel = getLevel(currentReferrer);
-            if (referrerLevel >= depth) {
-                comissionSum = (balance/ 1000) * findComission(depth);
-                userBalance[currentReferrer] += comissionSum;
-            }
-            currentReferrer = referralToReferrer[currentReferrer];
-        }
+    // Function to check the existence of the specified referrer
+    function isReferrerExist(address _referrer) private view returns (bool) {
+        return isSignedUp[_referrer];
     }
 
     //Commission percent calculation function based on referral level

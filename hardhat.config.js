@@ -10,7 +10,7 @@ module.exports = {
   solidity: "0.8.12",
   networks: {
     hardhat: {
-      chainId: 1337,
+      chainId: 31337,
     },
     rinkeby: {
       url: process.env.DEPLOY_KEY_RINKEBY,
