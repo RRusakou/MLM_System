@@ -11,12 +11,21 @@ contract ZENtoken is ERC20 {
         owner = msg.sender;
     }
 
-    function buyToken(address to, uint256 amount) external returns (bool) {
+    /**
+     * @notice creates a certain number of tokens
+     * @param to address of the user who will receive tokens
+     * @param amount amount of tokens user will receive
+     * @return isSuccessfully true - user got his tokens, false - no
+     */
+    function mintToken(address to, uint256 amount) external returns (bool isSuccessfully) {
         require(owner == msg.sender, "no execute permissions");
         _mint(to, amount);
         return true;
     }
-
+    /**
+     * @notice burns a certain number of tokens
+     * @param amount amount of tokens you want to burn
+     */
     function burn(uint amount) external {
         _burn(msg.sender, amount);
     }
